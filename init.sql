@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS contacts (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(20) NOT NULL
+);
+
+INSERT INTO contacts (name, email, phone) VALUES
+('Alice Dupont', 'alice@example.com', '0123456789'),
+('Bob Martin', 'bob@example.com', '0987654321'),
+('Charlie Durand', 'charlie@example.com', '0612345678')
+ON CONFLICT DO NOTHING;
