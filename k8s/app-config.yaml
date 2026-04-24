@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contacts-app-config
+  namespace: contacts-lab
+data:
+  DB_NAME: contacts_db
+  DB_USER: contact_user
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: contacts-app-secret
+  namespace: contacts-lab
+stringData:
+  DB_PASSWORD: secret_password

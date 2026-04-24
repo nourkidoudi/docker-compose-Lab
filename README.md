@@ -100,4 +100,45 @@ docker stats
 
 ---
 
+## ☸️ Déploiement sur un cluster k3s
+
+Le projet peut également être déployé sur un cluster Kubernetes léger comme k3s. Les manifests Kubernetes sont fournis dans le dossier `k8s/`.
+
+### Prérequis k3s
+
+- k3s ou k3d installé
+- `kubectl` configuré pour votre cluster k3s
+- Docker disponible pour construire les images locales
+
+### Étapes
+
+1. Construire les images locales :
+   ```bash
+   docker build -t lab-backend:latest -f Dockerfile.backend .
+   docker build -t lab-frontend:latest -f Dockerfile.frontend .
+   ```
+2. Charger les images dans k3s si nécessaire :
+   - pour `k3d` :
+     ```bash
+     k3d image import lab-backend:latest lab-frontend:latest -c <cluster-name>
+     ```
+3. Appliquer les manifests Kubernetes :
+   ```bash
+   kubectl apply -f k8s/namespace.yaml
+   kubectl apply -f k8s/app-config.yaml -n contacts-lab
+   kubectl apply -f k8s/postgres.yaml -n contacts-lab
+   kubectl apply -f k8s/backend.yaml -n contacts-lab
+   kubectl apply -f k8s/frontend.yaml -n contacts-lab
+   ```
+4. Accéder à l’interface frontend :
+   - depuis le cluster local : `http://localhost:30080`
+
+### Notes
+
+- Le service PostgreSQL est exposé uniquement au cluster.
+- Le frontend communique avec le backend via le service Kubernetes `backend`.
+- Le backend construit dynamiquement `DATABASE_URL` à partir des variables `DB_USER`, `DB_PASSWORD` et `DB_NAME`.
+
+---
+
 *(le contenu ci‑dessus satisfait les exigences du laboratoire et fournit une documentation complète pour l’utilisateur et l’évaluateur.)*
