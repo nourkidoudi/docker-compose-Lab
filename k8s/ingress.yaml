@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contacts-ingress
+  namespace: contacts-lab
+  annotations:
+    # Traefik is the default ingress controller in k3s
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  rules:
+    - http:
+        paths:
+          # Route all traffic to the frontend (nginx handles /api proxy internally)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 8080
