@@ -24,8 +24,9 @@ error()  { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 # ─── Variables ────────────────────────────────────────────────────────────────
 NAMESPACE="contacts-lab"
-BACKEND_IMAGE="lab-backend:latest"
-FRONTEND_IMAGE="lab-frontend:latest"
+DOCKER_USER="nourki2003"
+BACKEND_IMAGE="$DOCKER_USER/lab-backend:latest"
+FRONTEND_IMAGE="$DOCKER_USER/lab-frontend:latest"
 K8S_DIR="./k8s"
 
 # ─── Check prerequisites ──────────────────────────────────────────────────────
@@ -34,7 +35,6 @@ check_prerequisites() {
 
   command -v docker   &>/dev/null || error "Docker is not installed or not in PATH"
   command -v kubectl  &>/dev/null || error "kubectl is not installed or not in PATH"
-  command -v k3s      &>/dev/null || warn  "k3s binary not found in PATH (may be fine if using remote kubeconfig)"
 
   success "Prerequisites OK"
 }
@@ -48,64 +48,38 @@ clean_deployment() {
   success "Clean done"
 }
 
-# ─── Step 1: Build Docker images ─────────────────────────────────────────────
-build_images() {
-  log "Building Docker images..."
+# ─── Step 1: Build & Push Docker images ─────────────────────────────────────
+build_and_push_images() {
+  log "Building and Pushing Docker images to Docker Hub..."
 
+  log "  → Backend..."
   docker build -f Dockerfile.backend -t "$BACKEND_IMAGE" . \
     || error "Failed to build backend image"
-  success "Built $BACKEND_IMAGE"
+  docker push "$BACKEND_IMAGE" || error "Failed to push backend image. Are you logged in? (docker login)"
+  success "Backend image pushed"
 
+  log "  → Frontend..."
   docker build -f Dockerfile.frontend -t "$FRONTEND_IMAGE" . \
     || error "Failed to build frontend image"
-  success "Built $FRONTEND_IMAGE"
+  docker push "$FRONTEND_IMAGE" || error "Failed to push frontend image. Are you logged in? (docker login)"
+  success "Frontend image pushed"
 }
 
-# ─── Step 2: Import images into k3s ──────────────────────────────────────────
-# k3s uses its own containerd runtime — it does NOT share Docker's image cache.
-# Images must be exported from Docker and imported into k3s containerd.
-import_images_to_k3s() {
-  log "Importing images into k3s containerd runtime..."
-
-  log "  → Exporting $BACKEND_IMAGE from Docker..."
-  docker save "$BACKEND_IMAGE" -o /tmp/lab-backend.tar
-  sudo k3s ctr images import /tmp/lab-backend.tar
-  rm -f /tmp/lab-backend.tar
-  success "  $BACKEND_IMAGE imported"
-
-  log "  → Exporting $FRONTEND_IMAGE from Docker..."
-  docker save "$FRONTEND_IMAGE" -o /tmp/lab-frontend.tar
-  sudo k3s ctr images import /tmp/lab-frontend.tar
-  rm -f /tmp/lab-frontend.tar
-  success "  $FRONTEND_IMAGE imported"
-}
-
-# ─── Step 3: Apply Kubernetes manifests ───────────────────────────────────────
+# ─── Step 2: Apply Kubernetes manifests ───────────────────────────────────────
 apply_manifests() {
   log "Applying Kubernetes manifests..."
 
   # Order matters: namespace → config → storage → workloads → routing
   kubectl apply -f "$K8S_DIR/namespace.yaml"
-  success "Namespace applied"
-
   kubectl apply -f "$K8S_DIR/app-config.yaml"
-  success "ConfigMap + Secret applied"
-
   kubectl apply -f "$K8S_DIR/postgres-init.yaml"
-  success "Postgres init script ConfigMap applied"
-
   kubectl apply -f "$K8S_DIR/postgres.yaml"
-  success "Postgres Service + Deployment + PVC applied"
-
   kubectl apply -f "$K8S_DIR/backend.yaml"
-  success "Backend Service + Deployment applied"
-
   kubectl apply -f "$K8S_DIR/frontend.yaml"
-  success "Frontend Service + Deployment applied"
-
   kubectl apply -f "$K8S_DIR/ingress.yaml"
-  success "Ingress (Traefik) applied"
+  kubectl apply -f "$K8S_DIR/network-policy.yaml" 2>/dev/null || warn "NetworkPolicy not applied"
 }
+
 
 # ─── Step 4: Wait for all pods to be Ready ───────────────────────────────────
 wait_for_pods() {
@@ -149,7 +123,7 @@ print_info() {
 main() {
   echo ""
   echo -e "${BLUE}================================================${NC}"
-  echo -e "${BLUE}  🚀 k3s Deployment — Contacts App${NC}"
+  echo -e "${BLUE}  🚀 Docker Hub Deployment — Contacts App${NC}"
   echo -e "${BLUE}================================================${NC}"
   echo ""
 
@@ -160,8 +134,7 @@ main() {
     clean_deployment
   fi
 
-  build_images
-  import_images_to_k3s
+  build_and_push_images
   apply_manifests
   wait_for_pods
   print_info

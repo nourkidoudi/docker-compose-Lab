@@ -9,8 +9,6 @@ spec:
   ports:
     - port: 5000
       targetPort: 5000
-      protocol: TCP
-  type: ClusterIP
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -18,7 +16,12 @@ metadata:
   name: backend
   namespace: contacts-lab
 spec:
-  replicas: 1
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: backend
@@ -27,12 +30,25 @@ spec:
       labels:
         app: backend
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - backend
+              topologyKey: "kubernetes.io/hostname"
       containers:
         - name: backend
-          image: lab-backend:latest
-          imagePullPolicy: Never
-          ports:
-            - containerPort: 5000
+          image: nourki2003/lab-backend:latest
+          imagePullPolicy: Always
           env:
             - name: DB_NAME
               valueFrom:
@@ -49,12 +65,16 @@ spec:
                 secretKeyRef:
                   name: contacts-app-secret
                   key: DB_PASSWORD
-          command:
-            - sh
-            - -c
-            - |
-              export DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@postgres:5432/$DB_NAME"
-              exec node dist/index.cjs
+          command: ["sh", "-c", "export DATABASE_URL=\"postgresql://$DB_USER:$DB_PASSWORD@postgres:5432/$DB_NAME\"\nexec node dist/index.cjs\n"]
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
           readinessProbe:
             httpGet:
               path: /health

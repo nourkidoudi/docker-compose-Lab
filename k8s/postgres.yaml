@@ -13,11 +13,12 @@ spec:
   type: ClusterIP
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgres
   namespace: contacts-lab
 spec:
+  serviceName: "postgres"
   replicas: 1
   selector:
     matchLabels:
@@ -27,11 +28,22 @@ spec:
       labels:
         app: postgres
     spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
         - name: postgres
           image: postgres:15-alpine
           ports:
             - containerPort: 5432
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           env:
             - name: POSTGRES_DB
               valueFrom:
@@ -57,21 +69,16 @@ spec:
               mountPath: /docker-entrypoint-initdb.d/init.sql
               subPath: init.sql
       volumes:
-        - name: postgres-data
-          persistentVolumeClaim:
-            claimName: postgres-data
         - name: postgres-init
           configMap:
             name: postgres-init-script
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-data
-  namespace: contacts-lab
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "local-path"
+        resources:
+          requests:
+            storage: 1Gi
+
